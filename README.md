@@ -17,7 +17,8 @@ of the <a href="https://github.com/papyri/idp.data">idp.data repository</a>
 - Execute main.py (Windows: "py main.py", Linux/macOS: "python main.py")
 
 **For users on Windows who do not have any experience with Python**:
-- Download IDP-Scanner.exe
+- Download IDP-Scanner_Windows.zip from <a href="https://github.com/oli-do/IDP-Scanner/releases/">Releases</a>
+- Extract all files from the zip archive
 - Run IDP-Scanner.exe
 
 ## User Interface (UI) - Quick Guide
