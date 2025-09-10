@@ -1,0 +1,8 @@
+.nicegui
+.venv
+.idea
+build
+dist
+deployment
+*.spec
+*.json

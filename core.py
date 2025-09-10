@@ -1,10 +1,11 @@
-from multiprocessing import Queue
-import glob
 import os
 import re
-from nicegui import app
-from bs4 import BeautifulSoup, Tag
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from multiprocessing import Queue
+
+from bs4 import BeautifulSoup, Tag
+from nicegui import app
+
 
 def get_languages(soup: BeautifulSoup):
     langs = []
@@ -13,6 +14,7 @@ def get_languages(soup: BeautifulSoup):
             if not tag.attrs['xml:lang'] == 'en':
                 langs.append(tag.attrs['xml:lang'])
     return list(set(langs))
+
 
 def find_error(file_path: str, file_q: Queue, preset: str):
     file_path = os.path.normpath(file_path)
@@ -32,28 +34,31 @@ def find_error(file_path: str, file_q: Queue, preset: str):
     text_blocks = soup.find_all('ab')
     issue_pattern = r'[a-zA-Z0-9\*]+'
     issues = []
+    forbidden = []
     for block in text_blocks:
-        forbidden = re.findall(issue_pattern, block.text)
-        if forbidden:
-            lines = file.splitlines()
-            for i in range(len(lines)):
-                line = lines[i]
-                if not '<lb' in line:
-                    continue
-                line_soup = BeautifulSoup(f'<root>{line}</root>', 'lxml-xml')
-                for element in line_soup.find_all():
-                    if element:
-                        if isinstance(element, Tag):
-                            try:
-                                name = element.name.lower()
-                            except AttributeError:
-                                continue
-                            if name in ['note', 'num'] or 'desc' in name:
-                                element.decompose()
-                forbidden = re.findall(issue_pattern, line_soup.text)
-                if forbidden:
-                    issues.append({'forbidden': forbidden, 'xml': line, 'line': i, 'file_path': file_path})
+        forbidden.append(re.findall(issue_pattern, block.text))
+    if forbidden:
+        lines = file.splitlines()
+        for i in range(len(lines)):
+            line = lines[i]
+            if not '<lb' in line:
+                continue
+            line_soup = BeautifulSoup(f'<root>{line}</root>', 'lxml-xml')
+            for element in line_soup.find_all():
+                if element:
+                    if isinstance(element, Tag):
+                        try:
+                            name = element.name.lower()
+                        except AttributeError:
+                            continue
+                        if name in ['note', 'num'] or 'desc' in name:
+                            element.decompose()
+            forbidden = re.findall(issue_pattern, line_soup.text)
+            if forbidden:
+                shortened_file_path = file_path.replace(app.storage.general['idp_data_path'] + os.path.sep, '')
+                issues.append({'forbidden': forbidden, 'xml': line, 'line': i, 'file_path': shortened_file_path})
     return issues
+
 
 def find_errors(files: list, progress_q: Queue, file_q: Queue):
     max_workers = os.cpu_count()
@@ -74,18 +79,6 @@ def find_errors(files: list, progress_q: Queue, file_q: Queue):
     file_q.put('Finalizing...')
     return [r for res in results for r in res]
 
-def init(progress_q: Queue, file_q: Queue):
-    idp_data_path = app.storage.general['idp_data_path']
-    dclp_files = glob.glob(os.path.join(idp_data_path, 'DCLP', '**', '*.xml'))
-    ddb_files = glob.glob(os.path.join(idp_data_path, 'DDB_EpiDoc_XML', '**', '*.xml'))
-    all_files = dclp_files + ddb_files
-    if 'target' in app.storage.general:
-        target = app.storage.general['target'].lower()
-        if target == 'complete scan':
-            return find_errors(all_files, progress_q, file_q)
-        elif target == 'dclp':
-            return find_errors(dclp_files, progress_q, file_q)
-        else:
-            return find_errors(ddb_files, progress_q, file_q)
-    else:
-        return find_errors(all_files, progress_q, file_q)
+
+def init(files, progress_q: Queue, file_q: Queue):
+    return find_errors(files, progress_q, file_q)
